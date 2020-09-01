@@ -1,0 +1,40 @@
+import CountryController from "../country-controller";
+import CountryService from "../../services/country-service";
+import WikipediaService from "../../services/wikipedia-service";
+import { METHOD } from "../abstract-controller";
+
+describe("controllers/country-controller", () => {
+  describe("CountryController", () => {
+    // We instanciate all the dependencies required by the CountryController
+    const countryService = new CountryService("dummy_url", "dummy_key");
+    const wikipediaService = new WikipediaService("dummy_url");
+
+    // We instanciate the dummy controller by passing
+    // it the required dependencies
+    const controller = new CountryController(countryService, wikipediaService);
+
+    // We create spies for each method the country selector is supposed to call
+    // on its dependencies
+    const getAllCountriesSpy = jest.spyOn(countryService, "getAllCountries");
+    const getCountrySpy = jest.spyOn(countryService, "getCountry");
+    const getDescriptionSpy = jest.spyOn(wikipediaService, "getDescription");
+
+    // We get the registered routes
+    const routes = controller.registerRoutes();
+
+    // We reset all the spies after each test
+    afterEach(() => {
+      jest.resetAllMocks();
+    });
+
+    describe("#registerRoutes", () => {
+      it("should register a country list and detail endpoints", () => {
+        // We check the registered routes correspond to what is expected
+        expect(routes).toEqual([
+          [METHOD.GET, "/countries", expect.any(Function)],
+          [METHOD.GET, "/countries/:countryCode", expect.any(Function)],
+        ]);
+      });
+    });
+  });
+});

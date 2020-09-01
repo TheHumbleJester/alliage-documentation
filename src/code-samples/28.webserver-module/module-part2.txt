@@ -1,0 +1,45 @@
+import { AbstractLifeCycleAwareModule } from 'alliage-lifecycle/module'
+import { ServiceContainer } from 'alliage-di/service-container'
+import { parameter, allInstancesOf, Constructor } from 'alliage-di/dependencies';
+import { CONFIG_EVENTS } from "alliage-config-loader/events";
+import { loadConfig } from "alliage-config-loader/helpers";
+import { validate } from "alliage-config-loader/validators/json-schema";
+
+import { WebProcess } from './processes/web';
+import { AbstractController } from './controllers/abstract-controller';
+
+// It's IMPORTANT to export the module this way
+export = class WebserverModule extends AbstractLifeCycleAwareModule {
+  getEventHandlers() {
+    return {
+      // We listen to the CONFIG_EVENTS.LOAD event
+      [CONFIG_EVENTS.LOAD]: loadConfig(
+        // Will load the config/webserver.yaml file and
+        // the parameters will be available under the
+        // "webserver" root property
+        "webserver",
+        // The file format must match this JSON Schema which
+        // represents a simple object containing a "port" property
+        // which is a number
+        validate({
+          type: "object",
+          properties: {
+            port: {
+              type: "number",
+            },
+          },
+        })
+      ),
+    };
+  }
+
+  // We implement the 'registerServices' method allowing us
+  // to register the 'WebProcess' as a service
+  registerServices(serviceContainer: ServiceContainer) {
+    serviceContainer.registerService('web_process', WebProcess, [
+      // 
+      parameter("webserver.port"),
+      allInstancesOf(AbstractController as Constructor),
+    ]);
+  }
+}

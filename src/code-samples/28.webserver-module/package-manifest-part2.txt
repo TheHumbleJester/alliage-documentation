@@ -1,0 +1,27 @@
+{
+  "name": "web-server",
+  "version": "1.0.0",
+  "description": "Alliage webserver module",
+  "main": "index.js",
+  "license": "MIT",
+  "alliageManifest": {
+    "type": "module",
+    "dependencies": [
+      "alliage-di",
+      "alliage-lifecycle",
+      "alliage-process-manager",
+      "alliage-module-installer",
+    ]
+  },
+  "devDependencies": {
+    "typescript": "^4.0.2",
+  },
+  "peerDependencies": {
+    "express": "^4.17.1",
+    "alliage": "^1.0.0",
+    "alliage-di": "^1.1.1",
+    "alliage-lifecycle": "^1.1.1",
+    "alliage-process-manager": "^1.1.1",
+    "alliage-module-installer": "^1.1.1"
+  }
+}

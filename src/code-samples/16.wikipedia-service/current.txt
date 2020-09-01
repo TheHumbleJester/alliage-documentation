@@ -1,0 +1,32 @@
+import axios, { AxiosInstance } from "axios";
+
+import { Service } from "alliage-service-loader/decorators";
+import { parameter } from "alliage-di/dependencies";
+
+// We add the wikipedia configuration variables as dependency
+@Service("wikipedia_service", [parameter("parameters.wikipediaApi.url")])
+export default class WikipediaService {
+  private client: AxiosInstance;
+
+  // At the instanciation we receive the API url
+  // that we use to create the HTTP client
+  constructor(url: string) {
+    this.client = axios.create({
+      baseURL: url,
+    });
+  }
+
+  // We create a method allowing to get the description of
+  // a wikipedia article
+  async getDescription(article: string) {
+    try {
+      const res = await this
+        .client
+        .get<{ extract: string }>(`/rest_v1/page/summary/${article}`);
+      return res.data.extract;
+    }
+    catch (e) {
+      return null;
+    }
+  }
+}

@@ -1,0 +1,72 @@
+import { Request, Response } from "express";
+
+import CountryController from "../country-controller";
+import CountryService from "../../services/country-service";
+import WikipediaService from "../../services/wikipedia-service";
+import { METHOD } from "../abstract-controller";
+
+describe("controllers/country-controller", () => {
+  describe("CountryController", () => {
+    // We instanciate all the dependencies required by the CountryController
+    const countryService = new CountryService("dummy_url", "dummy_key");
+    const wikipediaService = new WikipediaService("dummy_url");
+
+    // We instanciate the dummy controller by passing
+    // it the required dependencies
+    const controller = new CountryController(countryService, wikipediaService);
+
+    // We create spies for each method the country selector is supposed to call
+    // on its dependencies
+    const getAllCountriesSpy = jest.spyOn(countryService, "getAllCountries");
+    const getCountrySpy = jest.spyOn(countryService, "getCountry");
+    const getDescriptionSpy = jest.spyOn(wikipediaService, "getDescription");
+
+    // We get the registered routes
+    const routes = controller.registerRoutes();
+
+    // We reset all the spies after each test
+    afterEach(() => {
+      jest.resetAllMocks();
+    });
+
+    describe("#registerRoutes", () => {
+      it("should register a country list and detail endpoints", () => {
+        // We check the registered routes correspond to what is expected
+        expect(routes).toEqual([
+          [METHOD.GET, "/countries", expect.any(Function)],
+          [METHOD.GET, "/countries/:countryCode", expect.any(Function)],
+        ]);
+      });
+    });
+
+    describe("#handleCountryList", () => {
+      // We get the country list route handler
+      const handleCountryList = routes[0][2];
+
+      it("should return the list of countries", async () => {
+        // We create fake express request and response
+        const reqMock = {} as Request;
+        const resMock = ({
+          json: jest.fn(),
+        } as unknown) as Response;
+
+        // We mock the CountryService.getAllCountries
+        // response
+        getAllCountriesSpy.mockResolvedValueOnce([
+          { name: "Afghanistan", code: "af" },
+          { name: "Albania", code: "al" },
+        ]);
+
+        // We execute the country list route handler
+        await handleCountryList(reqMock, resMock);
+
+        // And check the res.json() method had been called
+        // with what have been returnes by the CountryService
+        expect(resMock.json).toHaveBeenCalledWith([
+          { name: "Afghanistan", code: "af" },
+          { name: "Albania", code: "al" },
+        ]);
+      });
+    });
+  });
+});

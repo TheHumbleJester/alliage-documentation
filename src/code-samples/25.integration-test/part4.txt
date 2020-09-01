@@ -1,0 +1,202 @@
+import { ChildProcess } from "child_process";
+import getPort from "get-port";
+import axios from "axios";
+import express, { Request, Response } from "express";
+
+import { Sandbox } from "alliage-sandbox";
+
+describe("Main scenario", () => {
+  // We create the sandbox by providing it the path
+  // of the test scenario
+  const sandbox = new Sandbox({
+    scenarioPath: __dirname,
+  });
+
+  let webserverPort: number;
+  let countryApiPort: number;
+  let wikipediaApiPort: number;
+
+  let childProcess: ChildProcess;
+
+  beforeAll(async () => {
+    // Before doing anything we must initialize the sandbox
+    // This will create the blank Alliage project
+    await sandbox.init();
+
+    // We make the sandbox run the "alliage:build" script to
+    // compile the code
+    await sandbox
+      .build(["--env=development", "--use-typescript"])
+      .waitCompletion();
+
+    // Getting random available ports for the webserver
+    // and the fake country API and wikipedia API
+    webserverPort = await getPort();
+    countryApiPort = await getPort();
+    wikipediaApiPort = await getPort();
+
+    // We make the sandbox run the "alliage:run main" script
+    // while overriding the project default configuration through the
+    // definition of env variables
+    // We get in return a ChildProcess instance
+    ({ process: childProcess } = sandbox.run(["main"], {
+      env: {
+        WEBSERVER_PORT: webserverPort.toString(),
+        COUNTRY_API_URL: `http://localhost:${countryApiPort}`,
+        COUNTRY_API_KEY: "country_api_key",
+        WIKIPEDIA_API_URL: `http://localhost:${wikipediaApiPort}`,
+      },
+    }));
+
+    // We wait for our process to output the port which is the sign
+    // we can start make requests on it
+    await new Promise((resolve) =>
+      childProcess.stdout!.on("data", (data) => {
+        if (data === `Listening on: ${webserverPort}\n`) {
+          resolve();
+        }
+      })
+    );
+  }, 10000);
+
+  afterAll(async () => {
+    // Once all the tests are over, we kill the process
+    // and clear the sandbox
+    childProcess.kill("SIGINT");
+    await sandbox.clear();
+  });
+
+  describe("GET /", () => {
+    it('should respond "Hello world" !', async () => {
+      // We just make a simple request on our webserver
+      const res = await axios.get(`http://localhost:${webserverPort}`);
+
+      // and check that it actually return a success response with the
+      // content "Hello world !"
+      expect(res.status).toEqual(200);
+      expect(res.data).toEqual("Hello world !");
+    });
+  });
+
+  describe("GET /countries", () => {
+    it("should return the list of countries", async () => {
+      // We create a fake country API server
+      // and mock its "/country/all" endpoint
+      const countryApiMock = express();
+      let request: Request;
+      countryApiMock.get("/country/all", (req: Request, res: Response) => {
+        request = req;
+
+        res.status(200).json([
+          { name: "France", countryCode: "FR" },
+          { name: "Germany", countryCode: "DE" },
+          { name: "Italy", countryCode: "IT" },
+        ]);
+      });
+
+      // We start the fake country API server
+      const server = await new Promise<Server>((resolve) => {
+        const server = countryApiMock.listen(countryApiPort, () =>
+          resolve(server)
+        );
+      });
+
+      // We make a request on the country list endpoint
+      const res = await axios.get(
+        `http://localhost:${webserverPort}/countries`
+      );
+
+      // We check that:
+      // - a request has been made on the country API
+      expect(request!).toBeDefined();
+
+      // - The country API "key" has been provided in the query
+      expect(request!.query.key).toEqual("country_api_key");
+
+      // - The response is successfull
+      expect(res.status).toEqual(200);
+
+      // - The country list provided by the country API
+      //   Has been returned
+      expect(res.data).toEqual([
+        { name: "France", countryCode: "FR" },
+        { name: "Germany", countryCode: "DE" },
+        { name: "Italy", countryCode: "IT" },
+      ]);
+
+      // We close the fake country API server
+      server.close();
+    });
+  });
+
+  describe("GET /countries/:countryCode", () => {
+    it("should return the list of countries", async () => {
+      // We create a fake country API server
+      // and mock its "/country/code/:code" endpoint
+      const countryApiMock = express();
+      let countryRequest: Request;
+      countryApiMock.get("/country/code/fr", (req: Request, res: Response) => {
+        countryRequest = req;
+
+        res.status(200).json([{ name: "France", countryCode: "FR" }]);
+      });
+
+      // We create a fake wikipedia API server
+      // and mock its "/rest_v1/page/summary/:page" endpoint
+      const wikipediaApiMock = express();
+      let wikipediaRequest: Request;
+      wikipediaApiMock.get(
+        "/rest_v1/page/summary/France",
+        (req: Request, res: Response) => {
+          wikipediaRequest = req;
+
+          res.status(200).json({ extract: "france description" });
+        }
+      );
+
+      // We start both fake servers
+      const [countryApiServer, wikipediaApiServer] = await Promise.all([
+        new Promise<Server>((resolve) => {
+          const server = countryApiMock.listen(countryApiPort, () =>
+            resolve(server)
+          );
+        }),
+        new Promise<Server>((resolve) => {
+          const server = wikipediaApiMock.listen(wikipediaApiPort, () =>
+            resolve(server)
+          );
+        }),
+      ]);
+
+      // We make a request on the country detail endpoint
+      const res = await axios.get(
+        `http://localhost:${webserverPort}/countries/fr`
+      );
+
+      // We check that:
+      // - a request has been made on the country API
+      expect(countryRequest!).toBeDefined();
+
+      // - The country API "key" has been provided in the query
+      expect(countryRequest!.query.key).toEqual("country_api_key");
+
+      // - a request has been made on the wikipedia API
+      expect(wikipediaRequest!).toBeDefined();
+
+      // - The response is successfull
+      expect(res.status).toEqual(200);
+
+      // - The response body actually contains the
+      //   combination of both APIs responses
+      expect(res.data).toEqual({
+        name: "France",
+        countryCode: "FR",
+        description: "france description",
+      });
+
+      // We close both servers
+      countryApiServer.close();
+      wikipediaApiServer.close();
+    });
+  });
+});

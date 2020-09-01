@@ -1,0 +1,518 @@
+---
+name: "Going further"
+route: /Going further
+---
+
+import { Code } from "./components/code";
+
+# Going further
+
+## Unit testing
+
+Looks like we have a working REST API built with the **Alliage Framework**, however this doesn't mean that our job here is done.  
+A common good practice in software engineering is to write automated tests to check that any part of our code works properly in an isolated environment.
+
+In this example we'll use [Jest](https://jestjs.io/) as it's most widely used testing library but what's coming next could totally apply with any other library.  
+So we'll start by installing it:
+
+```bash
+yarn add -D jest @types/jest ts-jest
+```
+
+and we'll create the `jest.config.js` configuration file:
+
+<Code
+  fileName="jest.config.js"
+  current="18.unit-tests-jest-config/current.txt"
+  lang="javascript"
+/>
+
+Finally, we can start writing our test.  
+We won't necessarily cover all the code, so we'll just focus on the `src/controllers/country-controller.ts` which is the most complex case as it has dependencies on 2 **services**.  
+
+Let's start with the setup of our test file. We're going to create `country-controller.test.ts` file in the `src/controllers/__tests__` directory.
+
+<Code
+  fileName="src/controllers/__tests__/country-controller.test.ts"
+  current="19.unit-test/part1.txt"
+  lang="typescript"
+/>
+
+Now we can start writing the first test! Let's begin with the `registerRoutes` method.  
+All we need to check here is that it has actually returned a list of two routes: one for the list and one for the detail.
+
+<Code
+  fileName="src/controllers/__tests__/country-controller.test.ts"
+  current="19.unit-test/part1.txt"
+  next="19.unit-test/part2.txt"
+  lang="typescript"
+  fold
+/>
+
+Then, we can test the country list endpoint.
+Basically, what we need to check here is that:
+- The country service is actually called
+- The response body contains what has been returned by the country service
+
+<Code
+  fileName="src/controllers/__tests__/country-controller.test.ts"
+  current="19.unit-test/part2.txt"
+  next="19.unit-test/part3.txt"
+  lang="typescript"
+  fold
+/>
+
+Next, we can focus on the country detail endpoint.  
+Unlike the previous endpoint, there will be two scenarios to test here. The one when the given country exists and the one when the given country does not exist.  
+First, let's focus on the optimist case. In this one, we must check the following things:
+- The country service is called and receive the "countryCode" query parameter
+- The wikipedia service is called and receive the country name returned by the country service
+- The response body contains the country name and code provided by the country service AND the description provided by the wikipedia service
+
+<Code
+  fileName="src/controllers/__tests__/country-controller.test.ts"
+  current="19.unit-test/part3.txt"
+  next="19.unit-test/part4.txt"
+  lang="typescript"
+  fold
+/>
+
+Finally, we can test the least optimistic scenario in which will check the following things:
+- The country service is called and receive the "countryCode" query parameter
+- The response code is 404
+- The response body contains a "Not found." message.
+
+<Code
+  fileName="src/controllers/__tests__/country-controller.test.ts"
+  current="19.unit-test/part4.txt"
+  next="19.unit-test/part5.txt"
+  lang="typescript"
+  fold
+/>
+
+Once the test has been written, we'll be able to run them but, before that, we have to add a new script in our `package.json` file.
+
+<Code
+  fileName="package.json"
+  current="20.unit-test-script/current.txt"
+  next="20.unit-test-script/next.txt"
+  lang="json"
+  fold
+/>
+
+Also, to avoid any problem during the build, you can also ignore test files in the typescript config:
+
+<Code
+  fileName="tsconfig.json"
+  current="21.tsconfig-test/current.txt"
+  next="21.tsconfig-test/next.txt"
+  lang="json"
+  fold
+/>
+
+Now we're ready to run our test:
+
+```bash
+yarn test:unit
+```
+
+And, if everything's good it should be all green! ✅
+
+## Integration testing
+
+Unlike the unit testing, integration testing consists in testing our application as a whole in order to check that the connection between all of our components is working properly.
+
+In our case, doing this would mean starting our webserver and perform requests on it programmatically and check that it respond as exepected.  
+We see you grimacing! 👀 You certainly think that it would be a tricky thing to do, right ?
+Actually, not that much actually thanks to [alliage-sandbox](https://github.com/TheHumbleJester/alliage-sandbox)!
+
+### Install and configure `alliage-sandbox`
+
+This library will allow us to run our **Alliage** application in an **isolated sandbox** directly from your test files.  
+Then we'll be able to run our app in an isolated environment, with a specific configuration and in a **close-to-production** condition.
+
+So the first thing we'll do here is to install `alliage-sandbox`:
+
+```bash
+yarn add -D alliage-sandbox
+```
+
+Then, we'll create a new `integration-tests` folder at the root of the project:
+
+```bash
+mkdir integration-tests
+```
+
+Next, we'll need to create an **alliage-sandbox** configuration file.  
+It must be named `alliage-sandbox-config.json` and we'll create it in the previously created `integration-tests` directory.
+
+<Code
+  fileName="integration-tests/alliage-sandbox"
+  current="22-alliage-sandbox-config/current.txt"
+  lang="json"
+/>
+
+So, let's explain what's going on here ! 
+First, we must clarify how `alliage-sandbox` work internally.  
+Actually, when you initialize a **sandbox** in your test file, it will create a blank **Alliage** project. So what we do here with this config file is to copy the files of our project in the **sandbox**.
+This way, the project's sandbox will be a copy of our project and, then, we'll be able to perform tests on it!
+
+So basically here, we tell **alliage-sandbox** to copy the `src` directory, the `config` directory, the `alliage-modules.json` file and the `tsconfig.json` file in the **sandbox**.
+
+You must have noticed the strange syntax `<projectRoot>` in the file paths. This is actually a representation of you project's path.  
+There's actually two of them usable in the configuration file which are:
+- `<projectRoot>` as explained above
+- `<scenarioRoot>` which represents the directory where the `alliage-config.json` file is located. In our case, it's the `integration-tests` directory.
+
+### Improve project's testability
+
+Before starting writing the tests, we must to some little update make our project easily testable.
+
+The first one, will be to use environment variables in our configuration file, like this:
+
+<Code
+  fileName="config/parameters.yaml"
+  current="23.parameters-env/current.txt"
+  next="23.parameters-env/next.txt"
+  lang="yaml"
+  split
+/>
+
+The point of doing this is that, during our tests, we don't want our app to call the actual third-party services but **mocked versions** of them instead.  
+So now, we can just override the default configuration by just defining the corresponding env variables which is pretty convenient!
+
+The second update we'll make, will be on the **main process**. We're just going to make it output something in the console when the server is ready.
+It will help us to know when we can start making HTTP requests on it.
+
+<Code
+  fileName="src/processes/main.ts"
+  current="24.main-process-output/current.txt"
+  next="24.main-process-output/next.txt"
+  lang="typescript"
+  fold
+/>
+
+### Setup the test
+
+First we're going to setup the test.
+What we need to do is to:
+- Create and initialize the sandbox
+- Make it build the application
+- Make it run the web server while overriding the configuration
+
+<Code
+  fileName="integration-tests/index.text.ts"
+  current="25.integration-test/part1.txt"
+  lang="typescript"
+/>
+
+### Test a basic endpoint
+
+Now, let's start simple with our first integration test.  
+We're going to test the `/` endpoint as this one does not require to call third-party services.
+
+<Code
+  fileName="integration-tests/index.text.ts"
+  current="25.integration-test/part1.txt"
+  next="25.integration-test/part2.txt"
+  lang="typescript"
+  fold
+/>
+
+### Test the country list endpoint
+
+From here, things will get more complex as we need to simulate the country API.  
+What we need to do is to start a webserver listening on the random port generated earlier and to implement a dummy version of the `/country/all` endpoint.
+For the rest, it will be just like the previous example: We perform a request on our server and check the result.
+
+<Code
+  fileName="integration-tests/index.text.ts"
+  current="25.integration-test/part2.txt"
+  next="25.integration-test/part3.txt"
+  lang="typescript"
+  fold
+/>
+
+### Test the country detail endpoint
+
+Finally, for the detail endpoint il will be the same process except that, this time, we have to mock to APIs instead of just one:
+
+<Code
+  fileName="integration-tests/index.text.ts"
+  current="25.integration-test/part3.txt"
+  next="25.integration-test/part4.txt"
+  lang="typescript"
+  fold
+/>
+
+### Run the tests
+
+Now that we have written the tests, we're going to run them!
+But before, we're going to create a **jest** configuration file called `jest.config.integration.js` especially for the integration tests. It will simply extend the first one and override the test files pattern:
+
+<Code
+  fileName="jest.config.integration.js"
+  current="26.jest-config-integration/current.txt"
+  lang="javascript"
+/>
+
+Also, we're going to create a new script in the `package.json` to be able to run integration tests:
+
+<Code
+  fileName="jest.config.integration.js"
+  current="27.package-integration-script/current.txt"
+  next="27.package-integration-script/next.txt"
+  lang="json"
+  fold
+/>
+
+And finally, we can run the test by running the following command:
+
+```bash
+yarn test:integration
+```
+
+That's it! If everything went fine, it should be all green! ✅
+
+### About the sandbox
+
+You've certainly noticed that the sandbox API is pretty low level and requires some additional code to make things work like we want.  
+That's because, as the **Alliage framework**, the sandbox is not opinionated and is made to work for all kind of **Alliage projects**.
+That said, nothing prevent you from creating your own wrapper around it to make it more convenient to test the kind of project you want to build.
+
+## Create a reusable module
+
+In this documentation we kept telling you that **Alliage** allows you to easily share code in all of you application without ever telling you in what way exactly.  
+We weren't bullshitting you! We just wanted to save the best for last 😜
+
+There are a lot of obvious reasons why sharing code across all of your projects is interesting, but here are the most valuable reasons to our eyes:
+- It avoids code duplication in all of your projects:
+  - Each shared feature is maintained at one single place
+  - Updates are easier to spread
+  - Code is tested once
+- It makes your project free of technical things and more focused on business logic
+  - Modules are ideal to encapsulate purely technical features that are likely to be reused in other projects
+  - Avoiding mixing technical logic and business logic makes things easier to understand
+
+### Extract reusable components
+
+Now, let's think about what part of our code could be encapsulated in a shareable module 🤔
+If we look closer at our code, the only part that has the best chance to be reausable would be everything related to the web server:
+- The **abstract controller**
+- The **main process**: which is in charge of loading the controllers and launching the web server
+
+So, let's roll ou sleeves and move them in a separate module! 💪
+
+Usually, **Alliage modules** are not meant to be loaded locally from the project itself but it's pretty useful to do so for testing purpose.  
+So, the first thing we'll do is to create a `modules/web-server` directory:
+
+```bash
+mkdir -p modules/web-server
+```
+
+Let's move the **main process** and the **abstract controller** in that new folder:
+
+```bash
+## MainProcess (we rename in web.ts in the process)
+mkdir modules/web-server/processes
+mv src/processes/main.ts modules/web-server/processes/web.ts
+
+## AbstractController
+mkdir modules/web-server/controllers
+mv src/controllers/abstract-controller.ts modules/web-server/controllers/index.ts
+```
+
+Of course, we'll need to update the `MainController` and the `CountryController` change the import path of the `AbstractController`:
+
+<Code
+  fileName="src/controllers/main-controller.ts"
+  current="28.webserver-module/current-main-controller.txt"
+  next="28.webserver-module/next-main-controller.txt"
+  lang="typescript"
+  fold
+/>
+
+<Code
+  fileName="src/controllers/country-controller.ts"
+  current="28.webserver-module/current-country-controller.txt"
+  next="28.webserver-module/next-country-controller.txt"
+  lang="typescript"
+  fold
+/>
+
+
+We'll also need to make some little updates on the `MainProcess` which will rename in `WebProcess`:
+
+<Code
+  fileName="modules/web-server/processes/web.ts"
+  current="28.webserver-module/process-part1.txt"
+  next="28.webserver-module/process-part2.txt"
+  lang="typescript"
+  fold
+/>
+
+We have also replaced the default import with a named import and removed the `Service` decorator as the modules' services are not autoloaded.
+
+Finally, we must create the module class which must be located at the root of the module directory and in a `index.ts` file.
+This module class will allow, inter alia, to register the `MainProcess` as a service.
+
+<Code
+  fileName="modules/web-server/processes/web.ts"
+  current="28.webserver-module/module-part1.txt"
+  lang="typescript"
+/>
+
+### Create the package
+
+**Alliage modules** being node packages, we'll need to create a `package.json` file:
+
+```
+cd modules/web-server
+yarn init
+```
+
+Also, node packages are usually written in pure JavaScript so we'll have to compile the TypeScript code beforehand:
+
+```bash
+yarn add -D typescript # We install typescript
+$(npm bin)/tsc --init # We create a tsconfig.json file
+$(npm bin)/tsc # We compile the code
+```
+
+Finally, we must make the module installable. For this we have to add an `alliageManifest` property in the `package.json` file:
+
+<Code
+  fileName="modules/web-server/package.json"
+  current="28.webserver-module/package-manifest-part1.txt"
+  next="28.webserver-module/package-manifest-part2.txt"
+  lang="json"
+/>
+
+Well, we guess this deserves some explanations! 
+The `alliageManifest` property just contain some metadata required by the [alliage-module-installer](https://github.com/TheHumbleJester/alliage-core/tree/master/packages/module-installer) module to install a module automatically.  
+There's two main property here:
+- `type`: The value is `module` because... it's a module 
+- `dependencies`: The purpose of this information is to enable the `alliage-module-installer` module to make sure that all the module dependencies are installed before installing the module itself.  
+  Also, at the runtime, it also ensures that all module dependencies are loaded before loading the module itself.  
+  You might wonder: _How do we know what dependencies we must define for a module ?_
+  In our case, we define the `alliage-di`, `alliage-lifecycle` and `alliage-process-manager` as dependencies because we import some of their components in the code of our module.  
+  Regarding `alliage-module-installer`, it's simply because it's the module in charge of installing our own module, so we need to make sure that this module is installed and loaded before ours.
+
+### Create a dedicated config file
+
+We could start using our module right now but there's actually still room for improvement.  
+You may have noticed the `WebProcess` still have a dependency on the parameter `parameters.webserver.port`. It works fine like this but if the user remove the `webserver.port` property from the `config/parameters.yaml` file he will get an error that is not really self-explanatory.
+
+A better practice when it comes to provide the user the ability to configure our module is to have a dedicated configuration file for it.  
+It just required a bit more code but it is worth it as it bring pretty cool benefits:
+- A default config file can be created at the module's installation which lighten the installation process for the user.
+- We can validate the format of the config file and thus provide more explicit errors when the user does a mistake.
+
+The first step is to update the module's class to load and validate the config file:
+
+<Code
+  fileName="modules/web-server/index.ts"
+  current="28.webserver-module/module-part1.txt"
+  next="28.webserver-module/module-part2.txt"
+  lang="typescript"
+  fold
+/>
+
+Then, we must create the default configuration file, that will be automatically created in the project at the module's installation:
+
+<Code
+  fileName="modules/web-server/base-files/config.yaml"
+  current="28.webserver-module/config.txt"
+  lang="typescript"
+  yaml
+/>
+
+Next, we must update the `alliageManifest` in the `package.json` of our module to tell `alliage-module-installer` to copy the configuration file in the `config` folder at the module installation.
+
+<Code
+  fileName="modules/web-server/package.json"
+  current="28.webserver-module/package-manifest-part2.txt"
+  next="28.webserver-module/package-manifest-part3.txt"
+  lang="json"
+/>
+
+And as you can see above:
+- We've added the [alliage-config-loader]() module as dependency as, as it's name suggests it, it's the module in charge of loading the configuration files.
+- We've added the `installationProcedures.copyFiles` property which will copy the config file from the module to the project at the installation
+
+Finally, don't forget to recompile the code 😉
+
+```bash
+$(npm bin)/tsc
+```
+
+### Install and use the module
+
+Now that the module is ready, you'll be able to install it by running the following command:
+
+```bash
+yarn alliage:install ./modules/web-server
+```
+
+You should notice that a new entry has been added in the `alliage-modules.json` file and that a new `config/webserver.yaml` file has been created.  
+Now you can check that everything's alright by running the following command:
+
+```bash
+yarn alliage:run:dev web
+```
+
+It should start your server and everything should work the same way as before! 
+
+### Publish the package
+
+Now that we've tested our module locally, it's time for us to publish it!
+
+First, just remove the entry corresponding to your local module in the `alliage-modules.json` file:
+
+<Code
+  fileName="alliage-modules.json"
+  current="29.module-publish/alliage-modules-part1.txt"
+  next="29.module-publish/alliage-modules-part2.txt"
+  lang="json"
+  fold
+/>
+
+Then, create an account on [NPM](https://www.npmjs.com/signup) and login in your terminal with your credentials:
+
+```bash
+npm login
+```
+
+Finally, go in your module's directory and publish your package:
+
+```bash
+cd modules/web-server
+npm publish
+```
+
+Now that your package is published, you can go back in you project's directory and install it this way:
+
+```bash
+cd ../..
+yarn install-modules [your module's name]
+```
+
+The `install-modules` script is actually a shorthand for the following commands:
+
+```bash
+yarn add [your module's name]
+yarn alliage:install [your module's name]
+```
+
+## Conclusion
+
+Well, looks like you've reached the end of this documentation, congratz! 🥳
+But this doesn't mean your journey with **Alliage** stops here!
+
+Now you can start practicing a bit more and maybe build awesome projects with it!
+You can also consolidate your knowledge of it by having a look at the documentations of:
+- [Alliage](https://github.com/TheHumbleJester/alliage): The engine under the hood of the **Alliage framework**
+- [alliage-core](https://github.com/TheHumbleJester/alliage-core): The core modules of the **Alliage framework**
+- [alliage-typescript](https://github.com/TheHumbleJester/alliage-typescript): The module bringing the **TypeScript** syntax in your **Alliage** projects.
+
+Have fun! 👋
