@@ -1,0 +1,34 @@
+import { Request, Response } from "express";
+
+import { AbstractController, METHOD, Route } from "./abstract-controller";
+import { Service } from "alliage-service-loader/decorators";
+import { service } from "alliage-di/dependencies";
+
+import CountryService from "../services/country-service";
+
+// We add the CountryService as dependency by using its name
+@Service("country_controller", [service("country_service")])
+export default class CountryController extends AbstractController {
+  private countryService: CountryService;
+
+  // We receive the country service in the constructor...
+  constructor(countryService: CountryService) {
+    super();
+    // ... and store it in a property of our class
+    this.countryService = countryService;
+  }
+
+  public registerRoutes(): Route[] {
+    return [
+      // We create one route in our controller that will call
+      // the "handleCountryList" method when requested
+      [METHOD.GET, "/countries", this.handleCountryList]
+    ];
+  }
+
+  private handleCountryList = async (_req: Request, res: Response) => {
+    // We use the country service to get the list of all countries
+    // and return them as JSON
+    res.json(await this.countryService.getAllCountries());
+  };
+}

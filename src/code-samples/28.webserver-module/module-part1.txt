@@ -1,0 +1,19 @@
+import { AbstractLifeCycleAwareModule } from 'alliage-lifecycle/module'
+import { ServiceContainer } from 'alliage-di/service-container'
+import { parameter, allInstancesOf, Constructor } from 'alliage-di/dependencies';
+
+import { WebProcess } from './processes/web';
+import { AbstractController } from './controllers/abstract-controller';
+
+// It's IMPORTANT to export the module this way
+export = class WebserverModule extends AbstractLifeCycleAwareModule {
+
+  // We implement the 'registerServices' method allowing us
+  // to register the 'WebProcess' as a service
+  registerServices(serviceContainer: ServiceContainer) {
+    serviceContainer.registerService('web_process', WebProcess, [
+      parameter("parameters.webserver.port"),
+      allInstancesOf(AbstractController as Constructor),
+    ]);
+  }
+}

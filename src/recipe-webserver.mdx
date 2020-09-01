@@ -1,0 +1,313 @@
+---
+name: "Recipe: Webserver"
+route: /recipe-webserver
+---
+
+import { Code } from "./components/code";
+
+# Recipe: Webserver
+
+Alright! Now that you know the basic concepts of the **Alliage framework** it's time for us to get our hands in the code and to setup our webserver!
+
+## Setup 
+
+For this, we're going to rely on [express](https://expressjs.com/) as it's a reference in the NodeJS world.  
+So the first thing to do is to install it:
+
+```bash
+yarn add express @types/express
+```
+
+Then, we're just going to update the **main process** to make it start a simple webserver instead of just outputting a message in the terminal:
+
+<Code
+  fileName="src/processes/main.ts"
+  current="03.web-process/current.txt"
+  next="03.web-process/next.txt"
+  lang="typescript"
+/>
+
+In the example above, we just create a express server that listents on the `8080` port with a single endpoint at the root showing the `"Hello World!"` message.  
+
+You must be wondering what this `return await this.waitToBeShutdown()` is for, aren't you ?  
+That's pretty simple! Actually, in order to avoid having to deal with the weirdness of the NodeJS event loop, a process will exit automatically once the `execute` method has done being executed.  
+The problem here is the `listen` method from **express** is asynchronous, so we must make our process hang indefinitely.  
+To do such a thing you can simply use the `this.waitToBeShutdown()` like in the example above and then the process will hang until the `this.shutdown()` method is called.  
+Doesn't it feel **more explicit** and **natural** that way ? 😉
+
+So now, you can start the process:
+
+```bash
+yarn alliage:run:dev main
+```
+
+And connect to [http://localhost:8080](http://localhost:8080) with your browser and you should see the message "Hello world!" appear.
+
+## Make it configurable
+
+Okay, that's great, we have a working webserver, but a lot of things are not totally clean right now, especially the hardcoded port!  
+Alright, let's see how we could make it configurable!
+
+As we introduced you at the beginning of the tutorial, we have that file `config/parameters.yaml` whose role is to contain user defined variables.  
+Wouldn't it be the perfect place to put our port? Sure it is! 😎
+So let's update it that way:
+
+<Code
+  fileName="config/parameters.yaml"
+  current="04.parameters/current.txt"
+  next="04.parameters/next.txt"
+  lang="yaml"
+/>
+
+Once the parameters defined, we must get it from the process:
+
+<Code
+  fileName="src/processes/main.ts"
+  current="05.get-parameter-in-process/current.txt"
+  next="05.get-parameter-in-process/next.txt"
+  lang="typescript"
+/>
+
+Three important things here:
+- We pass a second argument to the `Service` decorator.  
+  This argument is actually the **dependencies** of our service.  
+  In our case our service has a **dependency** on a **parameter** whose path is `parameters.webserver.port` (which corresponds to what have been defined in the `config/parameters.yaml` earlier)
+- Then, we automatically receive the **parameters** in the constructor that we can store it in a `port` property of our class.
+- Finally, we use the `port` property instead of the hardcoded value
+
+That's it! Now the port is directly configurable form a config file without having to touch the code. Pretty convenient, isn't it? 😏
+
+## Create new endpoints
+
+What if we want to create new endpoints? 🤔  
+There is several approach to achieve such a thing:
+
+**_We could update the main process to add them!_**
+
+This is certainly the most straightforward solution but not the cleanest or the most future proof because, as we'll add more and more endpoints the main process file will get really messy.
+
+**_Fine! And what if we define them in another module and import it in the main process?_**
+
+That's better but still not a perfect solution.  
+A common mistake NodeJS developers do is to use module mechanism as a way to handle dependency injection.  
+The problem is that the modules get really coupled to each other which makes them hard to use indenpendently or even hard to test.  
+
+**_So the solution would be to use a real dependency injection mechanism ? Do we have that in Alliage ?_**
+
+Of course we have, and actually we've used it just before to inject the `port` parameter in our main process. So we could just do the same thing except, this time, we'll inject **controllers** instead.
+
+Let's do it! 💪
+
+The first thing we're going to do is to define an abstract class representing a controller.
+What we want is to be able to define, for a given request, a specific handler.
+A request will be represented by 2 piece of information:
+- An HTTP method (GET, POST, PUT, DELETE, etc...)
+- A path
+while the handler will just be a function containing the code to execute when a matching request is made.
+
+We're going to create a new file called `abstract-controller.ts` in the `src/controllers` directory:
+
+<Code
+  fileName="src/controllers/abstract-controller.ts"
+  current="06.abstract-controller/current.txt"
+  lang="typescript"
+/>
+
+Our abstract class will require to implement a `registerRoutes` method that must return a list a **routes**. A route being the combination of an HTTP method, a path and an handler.
+
+Then, we're going to create our first controller implementing this abstract class. This controller will define the endpoint we already have in our main process.
+To do so, we can create a new file called `main-controller.ts` in the `src/controllers` directory:
+
+<Code
+  fileName="src/controllers/main-controller.ts"
+  current="07.main-controller/current.txt"
+  lang="typescript"
+/>
+
+Now we'll have to update the `config/services.yaml` file to make sure that the files in the `src/controllers` folder are autoloaded:
+
+<Code
+  fileName="config/services.yaml"
+  current="08.controllers-autoload/current.txt"
+  next="08.controllers-autoload/next.txt"
+  lang="yaml"
+/>
+
+And finally, we'll need to update the **main process** to require the injection of all the controllers and to use them to define new endpoints in the express server:
+
+<Code
+  fileName="src/processes/main.ts"
+  current="09.load-controllers/current.txt"
+  next="09.load-controllers/next.txt"
+  lang="typescript"
+  split
+/>
+
+- First, we add a new dependency to our **main process** which are **all the instances** of `AbstractController` that have been declared as service.
+- Then, we get this dependency in the constructor and store it in a `this.controllers` property.
+- Finally, in the `execute` method, instead of declaring directly an endpoint we iterate over all the controllers and call their `registerRoutes` methods.  
+  And for each route returned, we create a corresponding endpoint in express.
+
+From now, if we want to create a new endpoint, we don't need to touch the **main process** anymore but we just have to create a new **controller** or to add a new route in an existing one! 🚀  
+Also, our **main process** is not tightly coupled to another module and will remain easily reusable and/or testable.
+
+## Create a REST API
+
+Now that we are able to easily add new endpoints in our web server, the next step will be to create our REST API.  
+The API we're going to make, will be an API allowing to get information about countries and to do so, we'll need to query third party services.
+
+### Country list endpoint
+
+The first endpoint we'll implement will be a simple country list.
+To get this list, we'll rely on the [Battuta](http://battuta.medunes.net/) API.
+
+The first thing to do here is to create an API key [here](http://battuta.medunes.net/) (Don't worry it's quick).
+Then, once we have the API key, we'll add every information related to this third party service in order to avoid having them hardcoded.
+
+<Code
+  fileName="config/parameters.yaml"
+  current="10.country-api-config/current.txt"
+  next="10.country-api-config/next.txt"
+  lang="yaml"
+/>
+
+Then, we'll create a `CountryService` which will act as an abstraction layer of the Battuta's REST API.
+But first, we'll need a way to perform HTTP requests. In our example, we'll use [Axios](https://github.com/axios/axios)
+
+```bash
+yarn add axios
+```
+
+The `CountryService` will be created under the `src/services/country-service.ts` path and will look like this:
+
+<Code
+  fileName="src/services/country-service.ts"
+  current="11.country-service/current.txt"
+  lang="typescript"
+/>
+
+Once the service ready, we can create the controller that will use this service to return the list of all countries.  
+We'll create a new `country-controller.ts` in the `src/controllers` directory that will contain the following code:
+
+<Code
+  fileName="src/controllers/country-controller.ts"
+  current="12.country-controller/current.txt"
+  lang="typescript"
+/>
+
+One thing important in the example above is the way we get the `CountryService` in our controller.  
+We took advantage of the dependency injection mechanism to avoid having to instanciate it ourself in our controller.  
+Thereby, the service comes already instanciated, configured and ready to use! 😎
+
+Now we should be able to test the first endpoint of our REST API.  
+Let's start the server:
+
+```bash
+yarn alliage:run:dev main
+```
+
+and let's connect to [http://localhost:8080/countries](http://localhost:8080/countries), you should have a similar response:
+
+```json
+[
+  { "name": "Afghanistan", "code": "af" },
+  { "name": "Albania", "code": "al" },
+  { "name": "Algeria", "code": "dz" },
+  { "name": "Andorra", "code": "ad" },
+  { "name": "Angola", "code": "ao" },
+  // ...
+]
+```
+
+Congratulations, you've created your first REST API with the **Alliage Framework**! 👏  
+But let's not stop, there! Let's see an example where we have to deal with several third party services.
+
+### Country detail endpoint
+
+The goal of this new endpoint would be to get the detail of a country by a country code.  
+The [Battuta API](http://battuta.medunes.net/) already provide such a thing but what we would like is to extend the payload with, for example, a short description of the country that we could get from the [Wikipedia API](https://www.mediawiki.org/wiki/API:Main_page).
+
+First, we're going to add a new method `getCountry` in our `CountryService` which will take a country code as parameter and will return the corresponding country.
+
+<Code
+  fileName="src/services/country-service.ts"
+  current="13.country-service-detail/current.txt"
+  next="13.country-service-detail/next.txt"
+  lang="typescript"
+/>
+
+Then, we'll add a new route in our `CountryController` to handle the country detail endpoint:
+
+<Code
+  fileName="src/controllers/country-controller.ts"
+  current="14.country-controller-detail/current.txt"
+  next="14.country-controller-detail/next.txt"
+  lang="typescript"
+/>
+
+If, for example, you connect to [http://localhost:8080/countries/tv](http://localhost:8080/countries/tv) for example, you should get the following result:
+
+```json
+{"name":"Tuvalu","code":"tv"}
+```
+
+This is cool but for now, we don't have much more information about the country that we can already have with the country list endpoint.  
+That's why we're going to extend the payload by fetching the country's description from the [Wikipedia API](https://www.mediawiki.org/wiki/API:Main_page).
+
+To connect to this API we'll follow the same process than previously. We'll start by creating configuration variables in the `config/parameters.yaml` file.
+
+<Code
+  fileName="config/parameters.yaml"
+  current="15.wiki-api-config/current.txt"
+  next="15.wiki-api-config/next.txt"
+  lang="yaml"
+/>
+
+As you can see **Wikipedia API** is much easier to use as it does not require any API key.
+
+Then, we'll create a `WikipediaService` (in `src/services/wikipedia-service.ts`) that will act as an abstraction layer of the Wikipedia REST API the same way we did for the country API.
+
+<Code
+  fileName="src/services/wikipedia-service.ts"
+  current="16.wikipedia-service/current.txt"
+  lang="typescript"
+/>
+
+Finally, we just have to:
+1. Update our controller to get the `WikipediaService`
+2. Use it to fetch the description of the country in the detail endpoint
+3. Inject the description in the payload
+
+<Code
+  fileName="src/controllers/country-controller.ts"
+  current="17.country-controller-description/current.txt"
+  next="17.country-controller-description/next.txt"
+  lang="typescript"
+/>
+
+And this time, if you do another request on [http://localhost:8080/countries/tv](http://localhost:8080/countries/tv) you'll get the following result:
+
+```json
+{
+    "name":"Tuvalu",
+    "code":"tv",
+    "description": "Tuvalu is a island country in the Polynesian subregion of Oceania..."
+}
+```
+
+## Run in production
+
+Until now, we have only run our project in development mode. This is convenient for the dev phase but not very optimal for a production environment.  
+To run your project in production you must compile it using the following command:
+
+```bash
+yarn alliage:build
+```
+
+It should create a `dist` folder at the root of your project. Then, you can run it in production mode with the following command:
+
+```bash
+yarn alliage:run main
+```
+
+

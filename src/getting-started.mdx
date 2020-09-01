@@ -1,0 +1,113 @@
+---
+name: Getting started
+route: /getting-started
+---
+
+import { Code } from "./components/code";
+
+# Getting started
+
+## Create a project
+
+Even if it could work with NPM, we strongly recommand you to use [yarn](https://yarnpkg.com/) when working with **Alliage**.  
+So if you haven't installed it yet, you can do it by running the following command:
+
+```bash
+npm install -g yarn
+```
+
+Once **yarn** is installed you can create a new project based on the **Alliage standard distribution** like so:
+
+```bash
+yarn create alliage-app standard [your project directory]
+```
+
+## Project structure
+
+Once the project created, it should create a new directory with the following structure:
+
+```txt
+.
+├── alliage-modules.json
+├── config
+│   ├── builder.yaml
+│   ├── parameters.yaml
+│   └── services.yaml
+├── package.json
+├── src
+│   └── processes
+│       └── main.ts
+├── tsconfig.json
+└── yarn.lock
+```
+
+Let's have a closer look at the most important files:
+
+- `alliage-modules.json`: This file contains the list of all the **Alliage** modules loaded by the framework. Normally, you don't have to update it manually except in certain conditions. If you wan't to know more about this file we suggest you to read [this part](https://github.com/TheHumbleJester/alliage#register-a-module) of the framework's documentation.
+- `config`: This folder contains all the configuration files of the **Alliage** modules.
+  - `builder.yaml`: Contains the configuration of the build pipeline.
+  - `services.yaml`: Contains the configuration of the service loader.
+  - `parameters.yaml`: Contains the user defined configuration variables.
+- `tsconfig.json`: Contains the configuration of TypeScript. So, you guessed it an **Alliage** application is written with TypeScript but, don't worry, it's also possible to remove it to use pure JS instead.
+- `src`: Contains the source code of the application. Most of the things we'll do in this tutorial will happen here.
+  - `processes`: Contains all the processes of the application.
+    - `main.ts`: Contains the code of the `main` process of the application.
+
+Some things like _build pipeline_, _service loaders_, _processes_, etc... might still be unclear at the moment but most of them will be explained later! Just be patient! 🙏
+
+## Basic concepts
+
+Before going directly into the code, let's see some basic concepts of an **Alliage** application.
+
+### Processes
+
+The entry points of an **Alliage** application are called **processes**.  
+A **process** just execute any kind of job you want it to do. It can be a simple CLI tool, a GUI app, or even... a web server. This totally up to you! 😉  
+**Processes** are brought by the [alliage-process-manager](https://github.com/TheHumbleJester/alliage-core/tree/master/packages/process-manager) core module
+
+As you can see, we already have one in the project which contain the following code:
+
+<Code
+  fileName="src/processes/main.ts"
+  current="01.process/current.txt"
+  lang="tsx"
+/>
+
+As we can see a **process** is a class extending `AbstractProcess` and implementing two methods:
+
+- `getName(): string`: Simply returns the process's name. It must be unique among all the processes.
+- `execute(): boolean | Promise<boolean>`: Contains the code we want to execute when the process is run. It returns true if the process is successful and false if it's not.
+
+The main process is pretty simple, it's just output "Hello Alliage!" in the console. If you want to try it you just have to run the following command:
+
+```bash
+yarn alliage:run:dev main
+```
+
+And you should have the following output:
+
+```bash
+Hello Alliage!
+```
+
+As you might have understood, the `main` argument in the above command refers to what is return by the `getName()` method of the **process**.
+
+### Service loading
+
+You surely have noticed that we are able to use the main process even though its source file is not imported anywhere. What kind of sorcery is this ? 🤔  
+That's because the **Alliage framework** comes with an autoloading feature brought by the [alliage-service-loader](https://github.com/TheHumbleJester/alliage-core/tree/master/packages/service-loader) core module.
+
+To determine what file can be automatically loaded, the modules just relies of the following configuration file:
+
+<Code
+  fileName="config/services.yaml"
+  current="02.services-config/current.txt"
+  lang="yaml"
+/>
+
+In this file we can see two properties:
+
+- `basePath`: Determines where are located the application sources. The specific syntax we can see here just says that it will take the value of the `ALLIAGE_TS_SERVICES_BASEPATH` env variable and default on the `"dist"` value if not defined. This env variables is automatically defined by the [alliage-typescript](https://github.com/TheHumbleJester/alliage-typescript) module when the application is run in dev mode.
+- `paths`: Determine what files will be autoloaded. In our case, we automatically load all the files being located directly or indirectly in the `processes` or `services` directories.
+
+Another condition for a file to be autoloaded is to have a default export using the `Service` decorator. This `Service` decorator has one mandatory argument which is a name that must be unique among all the services.

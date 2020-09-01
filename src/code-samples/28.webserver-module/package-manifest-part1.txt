@@ -1,0 +1,10 @@
+{
+  "name": "web-server",
+  "version": "1.0.0",
+  "description": "Alliage webserver module",
+  "main": "index.js",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^4.0.2",
+  }
+}

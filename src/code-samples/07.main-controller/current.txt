@@ -1,0 +1,22 @@
+import { Request, Response } from "express";
+
+import { AbstractController, METHOD, Route } from "./abstract-controller";
+import { Service } from "alliage-service-loader/decorators";
+
+// We create a class extending the AbstractController created earlier
+// and delare it as a service
+@Service("main_controller")
+export default class MainController extends AbstractController {
+  // We implement the register route method
+  public registerRoutes(): Route[] {
+    return [
+      // We create one route
+      [METHOD.GET, "/", this.handleIndex],
+    ];
+  }
+
+  // The route will be handled by this method
+  private handleIndex = (_req: Request, res: Response) => {
+    res.send("Hello world !");
+  }
+}
