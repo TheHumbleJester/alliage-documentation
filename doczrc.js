@@ -3,6 +3,8 @@ import { merge } from "lodash/fp";
 import { toTheme } from "@theme-ui/typography";
 
 export default {
+  title: "Alliage",
+  description: "The build-anything NodeJS Framework",
   menu: ["Introduction", "Getting started", "Recipe: Webserver", "Going further"],
   ignore: ['README.md'],
   plugins: ["gatsby-theme-docz"],
